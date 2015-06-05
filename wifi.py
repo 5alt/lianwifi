@@ -6,9 +6,13 @@ import md5
 from Crypto.Cipher import AES
 import requests
 import random
+import re
 from flask import Flask
-from flask import request
+from flask import request,redirect,url_for
 app = Flask(__name__)
+import sys
+reload(sys)
+sys.setdefaultencoding('utf-8')
 
 class wifi:
 	aesKey = 'k%7Ve#8Ie!5Fb&8E'
@@ -43,7 +47,7 @@ class wifi:
 		data['ii'] = md5.md5(str(random.randint(1,10000))).hexdigest()
 		data['imei'] = data['ii']
 		data['lang'] = 'cn'
-		data['mac'] = md5.md5(str(random.randint(1,10000))).hexdigest()[:12]
+		data['mac'] = data['ii'][:12]#md5.md5(str(random.randint(1,10000))).hexdigest()[:12]
 		data['manuf'] = 'Apple'
 		data['method'] = 'getTouristSwitch'
 		data['misc'] = 'Mac OS'
@@ -76,7 +80,76 @@ class wifi:
 		else:
 			return False
 
-	def request(self, ssid, bssid):
+	def __query(self, ssid, bssid):
+		data = {}
+		data['appid'] = '0008'
+		data['bssid'] = ','.join(bssid)
+		data['chanid'] = 'gw'
+		data['dhid'] = self.dhid
+		data['ii'] = self.ii
+		data['lang'] = 'cn'
+		data['mac'] = self.mac
+		data['method'] = 'getSecurityCheckSwitch'
+		data['pid'] = 'qryapwithoutpwd:commonswitch'
+		data['ssid'] = ','.join(ssid)
+		data['st'] = 'm'
+		data['uhid'] = 'a0000000000000000000000000000001'
+		data['v'] = '324'
+		data['sign'] = self.__sign(data, self.salt)
+
+		url = 'http://wifiapi02.51y5.net/wifiapi/fa.cmd'
+
+		useragent = 'WiFiMasterKey/1.1.0 (Mac OS X Version 10.10.3 (Build 14D136))'
+		headers = {'User-Agent': useragent}
+
+		r = requests.post(url, data=data, headers=headers).json()
+
+		self.salt = r['retSn']
+
+		if r['retCd'] == '-1111':
+			return self.__request(ssid, bssid)#maybe some problem
+
+		ret = {}
+		ret['flag'] = False
+		ret['ssid'] = []
+		ret['bssid'] = []
+
+		if r['retCd'] == '0':
+			if r['qryapwithoutpwd']['retCd'] == '0':
+				for d in r['qryapwithoutpwd']['psws']:
+					wifi = r['qryapwithoutpwd']['psws'][d]
+					ret['ssid'].append(wifi['ssid'])
+					ret['bssid'].append(wifi['bssid'])
+				ret['flag'] = True
+			else:
+				ret['msg'] = r['qryapwithoutpwd']['retMsg']
+		else:
+			ret['msg'] = r['retMsg']
+
+		return ret
+
+
+	def query(self, ssid, bssid):
+		wifi = self.__query(ssid, bssid)
+		if wifi['flag']:
+			ret = '='*10 + '<br>'
+			for i in xrange(len(wifi['ssid'])):
+				rsp = self.__request(wifi['ssid'][i], wifi['bssid'][i])
+				if rsp['flag']:
+					del rsp['flag']
+					del rsp['msg']
+					ret += '<br>'.join([x + ' : ' + str(rsp[x]) for x in rsp])
+					ret += '<br>' + '='*10 + '<br>'
+				else:
+					del rsp['flag']
+					ret += '<br>'.join([x + ' : ' + str(rsp[x]) for x in rsp])
+					ret += '<br>' + '='*10 + '<br>'
+			return ret
+		else:
+			return wifi['msg']
+
+
+	def __request(self, ssid, bssid):
 		data = {}
 		data['appid'] = '0008'
 		data['bssid'] = bssid
@@ -103,26 +176,42 @@ class wifi:
 		self.salt = r['retSn']
 
 		if r['retCd'] == '-1111':
-			return self.request(ssid, bssid)#maybe some problem
+			return self.__request(ssid, bssid)#maybe some problem
 
+		ret = {}
+		ret['flag'] = False
+		ret['msg'] = 'empty'
+		ret['ssid'] = ssid
+		ret['bssid'] = bssid
 		if r['retCd'] == '0':
 			if r['qryapwd']['retCd'] == '0':
-				ret = ''
 				for d in r['qryapwd']['psws']:
 					wifi = r['qryapwd']['psws'][d]
-					ret += 'SSID: ' + wifi['ssid'] + '<br>'
-					ret +=  'BSSID: ' + wifi['bssid'] + '<br>'
-					if 'pwd' in wifi:
-						ret +=  'PWD: ' + self.__decrypt(wifi['pwd']) + '<br>'
+					if wifi['pwd']:
+						ret['pwd'] = self.__decrypt(wifi['pwd'])
+						ret['flag'] = True
 					if wifi['xUser']:
-						ret +=  'xUser: ' + wifi['xUser'] + '<br>'
-						ret +=  'xPwd: ' + wifi['xPwd'] + '<br>'
-					ret +=  '<br>'
-				return ret
+						ret['xUser'] = wifi['xUser']
+						ret['xPwd'] = ['xPwd']
+						ret['flag'] = True
 			else:
-				return r['qryapwd']['retMsg']
+				ret['msg'] = r['qryapwd']['retCd'] + ': ' + r['qryapwd']['retMsg']
 		else:
-			return r['retMsg']
+			ret['msg'] = r['retCd'] + ': ' + r['retMsg']
+
+		return ret
+
+	def request(self, ssid, bssid):
+		wifi = self.__request(ssid, bssid)
+		if wifi['flag']:
+			del wifi['flag']
+			del wifi['msg']
+			ret = '='*10 + '<br>'
+			ret += '<br>'.join([x + ' : ' + str(wifi[x]) for x in wifi])
+			ret += '<br>' + '='*10 + '<br>'
+			return ret
+		else:
+			return wifi['msg']
 
 def show_query_form():
 	data = '''
@@ -132,6 +221,23 @@ def show_query_form():
   <input type="submit" value="Submit">
 </form>
 <br><br>
+	'''
+	return data
+
+def show_text_form():
+	data = '''
+<form action="/text" method="post">
+  data:<br><textarea name="text" cols=60 rows=4>
+CMCC-EDU 06:11:b5:25:87:b6 0    11      Y  -- NONE
+CMCC-WEB 00:11:b5:25:87:b6 0    11      Y  -- NONE
+  </textarea><br>
+  <input type="submit" value="Submit">
+<br>
+Note:<br>
+* ssid and its bssid in one line<br>
+* ssid before bssid, seperated by whitespaces<br>
+* sample data is in the textarea, replace it with your own
+<br>
 	'''
 	return data
 
@@ -147,11 +253,29 @@ def index():
 			return redirect(url_for('wifi'))
 	else:
 		return show_query_form()
+
+@app.route('/text', methods=['GET', 'POST'])
+def text():
+	global w
+	if request.method == 'POST':
+		if request.form['text']:
+			pattern = r"\s*(.*)\s+(([0-9a-f]{2}:){5}[0-9a-f]{2})"
+			ssid = []
+			bssid = []
+			for ss, bss, dummy in re.compile(pattern, re.M).findall(request.form['text']):
+				ssid.append(ss)
+				bssid.append(bss)
+			return show_text_form() + w.query(ssid, bssid)
+		else:
+			return redirect(url_for('text'))
+	else:
+		return show_text_form()
+
 @app.route('/refresh')
 def refresh():
 	global w
 	w.RegisterNewDevice()
-	return redirect(url_for('wifi'))
+	return redirect(url_for('index'))
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080)    
+    app.run(host='0.0.0.0', port=8080, debug=True)    

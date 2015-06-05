@@ -11,6 +11,10 @@ import requests
 import random
 import re
 import commands
+import time
+import sys
+reload(sys)
+sys.setdefaultencoding('utf-8')
 
 class wifi:
 	aesKey = 'k%7Ve#8Ie!5Fb&8E'
@@ -78,7 +82,7 @@ class wifi:
 		else:
 			return False
 
-	def query(self, ssid, bssid):
+	def __query(self, ssid, bssid):
 		data = {}
 		data['appid'] = '0008'
 		data['bssid'] = ','.join(bssid)
@@ -105,23 +109,63 @@ class wifi:
 		self.salt = r['retSn']
 
 		if r['retCd'] == '-1111':
-			print self.__request(ssid, bssid)#maybe some problem
+			return self.__request(ssid, bssid)#maybe some problem
+
+		ret = {}
+		ret['flag'] = False
+		ret['ssid'] = []
+		ret['bssid'] = []
 
 		if r['retCd'] == '0':
 			if r['qryapwithoutpwd']['retCd'] == '0':
-				ret = '='*10 + '\n'
 				for d in r['qryapwithoutpwd']['psws']:
 					wifi = r['qryapwithoutpwd']['psws'][d]
-					rsp = self.__request(wifi['ssid'], wifi['bssid'])
-					if rsp['flag']:
-						del rsp['flag']
-						ret += '\n'.join([x + ' : ' + str(rsp[x]) for x in rsp])
-						ret += '\n' + '='*10 + '\n'
-				print ret
+					ret['ssid'].append(wifi['ssid'])
+					ret['bssid'].append(wifi['bssid'])
+				ret['flag'] = True
 			else:
-				print r['qryapwithoutpwd']['retMsg']
+				ret['msg'] = r['qryapwithoutpwd']['retMsg']
 		else:
-			print r['retMsg']
+			ret['msg'] = r['retMsg']
+
+		return ret
+
+
+	def query(self, ssid, bssid):
+		wifi = self.__query(ssid, bssid)
+		if wifi['flag']:
+			ret = '='*10 + '\n'
+			for i in xrange(len(wifi['ssid'])):
+				time.sleep(2)
+				rsp = self.__request(wifi['ssid'][i], wifi['bssid'][i])
+				if rsp['flag']:
+					del rsp['flag']
+					del rsp['msg']
+					ret += '\n'.join([x + ' : ' + str(rsp[x]) for x in rsp])
+					ret += '\n' + '='*10 + '\n'
+			print ret
+		else:
+			print wifi['msg']
+
+	def queryall(self, ssid, bssid):
+		wifi = self.__query(ssid, bssid)
+		if wifi['flag']:
+			ret = '='*10 + '\n'
+			for i in xrange(len(wifi['ssid'])):
+				time.sleep(2)
+				rsp = self.__request(wifi['ssid'][i], wifi['bssid'][i])
+				if rsp['flag']:
+					del rsp['flag']
+					del rsp['msg']
+					ret += '\n'.join([x + ' : ' + str(rsp[x]) for x in rsp])
+					ret += '\n' + '='*10 + '\n'
+				else:
+					del rsp['flag']
+					ret += '\n'.join([x + ' : ' + str(rsp[x]) for x in rsp])
+					ret += '\n' + '='*10 + '\n'
+			print ret
+		else:
+			print wifi['msg']
 
 
 	def __request(self, ssid, bssid):
@@ -151,37 +195,46 @@ class wifi:
 		self.salt = r['retSn']
 
 		if r['retCd'] == '-1111':
-			return self.request(ssid, bssid)#maybe some problem
+			return self.__request(ssid, bssid)#maybe some problem
 
+		ret = {}
+		ret['flag'] = False
+		ret['msg'] = 'empty'
+		ret['ssid'] = ssid
+		ret['bssid'] = bssid
 		if r['retCd'] == '0':
 			if r['qryapwd']['retCd'] == '0':
-				ret = {}
 				for d in r['qryapwd']['psws']:
 					wifi = r['qryapwd']['psws'][d]
-					ret['ssid'] = wifi['ssid']
-					ret['bssid'] = wifi['bssid']
 					if wifi['pwd']:
 						ret['pwd'] = self.__decrypt(wifi['pwd'])
+						ret['flag'] = True
 					if wifi['xUser']:
 						ret['xUser'] = wifi['xUser']
 						ret['xPwd'] = ['xPwd']
-				ret['flag'] = True
-				return ret
+						ret['flag'] = True
+			elif r['qryapwd']['retCd'] == '-9998':
+				time.sleep(5)
+				return self.__request(ssid, bssid)#maybe some problem
 			else:
-				return {'msg':r['qryapwd']['retMsg'], 'flag':False}
+				ret['msg'] = r['qryapwd']['retCd'] + ': ' + r['qryapwd']['retMsg']
 		else:
-			return {'msg':r['retMsg'], 'flag':False}
+			ret['msg'] = r['retCd'] + ': ' + r['retMsg']
+
+		return ret
 
 	def request(self, ssid, bssid):
 		wifi = self.__request(ssid, bssid)
 		if wifi['flag']:
 			del wifi['flag']
+			del wifi['msg']
 			ret = '='*10 + '\n'
 			ret += '\n'.join([x + ' : ' + str(wifi[x]) for x in wifi])
 			ret += '\n' + '='*10 + '\n'
 			print ret
 		else:
 			print wifi['msg']
+
 if __name__ == '__main__':
 	pattern = r"\s*(.*)\s+(([0-9a-f]{2}:){5}[0-9a-f]{2})"
 	status, output = commands.getstatusoutput('airport -s')
