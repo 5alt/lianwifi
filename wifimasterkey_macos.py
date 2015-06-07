@@ -120,14 +120,14 @@ class wifi:
 			if r['qryapwithoutpwd']['retCd'] == '0':
 				for d in r['qryapwithoutpwd']['psws']:
 					wifi = r['qryapwithoutpwd']['psws'][d]
-					ret['ssid'].append(wifi['ssid'])
-					ret['bssid'].append(wifi['bssid'])
+					if wifi['bssid'] in bssid:
+						ret['ssid'].append(wifi['ssid'])
+						ret['bssid'].append(wifi['bssid'])
 				ret['flag'] = True
 			else:
 				ret['msg'] = r['qryapwithoutpwd']['retMsg']
 		else:
 			ret['msg'] = r['retMsg']
-
 		return ret
 
 

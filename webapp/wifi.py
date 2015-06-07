@@ -6,10 +6,7 @@ import md5
 from Crypto.Cipher import AES
 import requests
 import random
-import re
-from flask import Flask
-from flask import request,redirect,url_for
-app = Flask(__name__)
+import re, time
 import sys
 reload(sys)
 sys.setdefaultencoding('utf-8')
@@ -80,7 +77,7 @@ class wifi:
 		else:
 			return False
 
-	def __query(self, ssid, bssid):
+	def query(self, ssid, bssid):
 		data = {}
 		data['appid'] = '0008'
 		data['bssid'] = ','.join(bssid)
@@ -107,20 +104,24 @@ class wifi:
 		self.salt = r['retSn']
 
 		if r['retCd'] == '-1111':
-			return self.__request(ssid, bssid)#maybe some problem
+			return self.query(ssid, bssid)#maybe some problem
 
 		ret = {}
-		ret['flag'] = False
+		ret['err'] = 1
 		ret['ssid'] = []
 		ret['bssid'] = []
+		ret['msg'] = ''
+		ret['total'] = 0
 
 		if r['retCd'] == '0':
 			if r['qryapwithoutpwd']['retCd'] == '0':
 				for d in r['qryapwithoutpwd']['psws']:
 					wifi = r['qryapwithoutpwd']['psws'][d]
-					ret['ssid'].append(wifi['ssid'])
-					ret['bssid'].append(wifi['bssid'])
-				ret['flag'] = True
+					if wifi['bssid'] in bssid:
+						ret['ssid'].append(wifi['ssid'])
+						ret['bssid'].append(wifi['bssid'])
+						ret['total'] += 1
+				ret['err'] = 0
 			else:
 				ret['msg'] = r['qryapwithoutpwd']['retMsg']
 		else:
@@ -128,28 +129,7 @@ class wifi:
 
 		return ret
 
-
-	def query(self, ssid, bssid):
-		wifi = self.__query(ssid, bssid)
-		if wifi['flag']:
-			ret = '='*10 + '<br>'
-			for i in xrange(len(wifi['ssid'])):
-				rsp = self.__request(wifi['ssid'][i], wifi['bssid'][i])
-				if rsp['flag']:
-					del rsp['flag']
-					del rsp['msg']
-					ret += '<br>'.join([x + ' : ' + str(rsp[x]) for x in rsp])
-					ret += '<br>' + '='*10 + '<br>'
-				else:
-					del rsp['flag']
-					ret += '<br>'.join([x + ' : ' + str(rsp[x]) for x in rsp])
-					ret += '<br>' + '='*10 + '<br>'
-			return ret
-		else:
-			return wifi['msg']
-
-
-	def __request(self, ssid, bssid):
+	def request(self, ssid, bssid):
 		data = {}
 		data['appid'] = '0008'
 		data['bssid'] = bssid
@@ -176,7 +156,7 @@ class wifi:
 		self.salt = r['retSn']
 
 		if r['retCd'] == '-1111':
-			return self.__request(ssid, bssid)#maybe some problem
+			return self.request(ssid, bssid)#maybe some problem
 
 		ret = {}
 		ret['flag'] = False
@@ -194,88 +174,12 @@ class wifi:
 						ret['xUser'] = wifi['xUser']
 						ret['xPwd'] = ['xPwd']
 						ret['flag'] = True
+			elif r['qryapwd']['retCd'] == '-9998':
+				time.sleep(5)
+				return self.request(ssid, bssid)#maybe some problem
 			else:
 				ret['msg'] = r['qryapwd']['retCd'] + ': ' + r['qryapwd']['retMsg']
 		else:
 			ret['msg'] = r['retCd'] + ': ' + r['retMsg']
 
 		return ret
-
-	def request(self, ssid, bssid):
-		wifi = self.__request(ssid, bssid)
-		if wifi['flag']:
-			del wifi['flag']
-			del wifi['msg']
-			ret = '='*10 + '<br>'
-			ret += '<br>'.join([x + ' : ' + str(wifi[x]) for x in wifi])
-			ret += '<br>' + '='*10 + '<br>'
-			return ret
-		else:
-			return wifi['msg']
-
-def show_query_form():
-	data = '''
-<form action="/wifi" method="post">
-  ssid:  <input type="text" name="ssid"><br>
-  bssid: <input type="text" name="bssid">(mac address)<br>
-  <input type="submit" value="Submit">
-</form>
-<br><br>
-	'''
-	return data
-
-def show_text_form():
-	data = '''
-<form action="/text" method="post">
-  data:<br><textarea name="text" cols=60 rows=4>
-CMCC-EDU 06:11:b5:25:87:b6 0    11      Y  -- NONE
-CMCC-WEB 00:11:b5:25:87:b6 0    11      Y  -- NONE
-  </textarea><br>
-  <input type="submit" value="Submit">
-<br>
-Note:<br>
-* ssid and its bssid in one line<br>
-* ssid before bssid, seperated by whitespaces<br>
-* sample data is in the textarea, replace it with your own
-<br>
-	'''
-	return data
-
-w = wifi()
-
-@app.route('/wifi', methods=['GET', 'POST'])
-def index():
-	global w
-	if request.method == 'POST':
-		if request.form['ssid'] and request.form['bssid']:
-			return show_query_form() + w.request(request.form['ssid'], request.form['bssid'])
-		else:
-			return redirect(url_for('wifi'))
-	else:
-		return show_query_form()
-
-@app.route('/text', methods=['GET', 'POST'])
-def text():
-	global w
-	if request.method == 'POST':
-		if request.form['text']:
-			pattern = r"\s*(.*)\s+(([0-9a-f]{2}:){5}[0-9a-f]{2})"
-			ssid = []
-			bssid = []
-			for ss, bss, dummy in re.compile(pattern, re.M).findall(request.form['text']):
-				ssid.append(ss)
-				bssid.append(bss)
-			return show_text_form() + w.query(ssid, bssid)
-		else:
-			return redirect(url_for('text'))
-	else:
-		return show_text_form()
-
-@app.route('/refresh')
-def refresh():
-	global w
-	w.RegisterNewDevice()
-	return redirect(url_for('index'))
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080, debug=True)    
