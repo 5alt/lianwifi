@@ -14,10 +14,6 @@ sys.setdefaultencoding('utf-8')
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'keep_it_secret'
 
-# Celery configuration
-app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'
-app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
-
 @app.route('/', methods=['GET', 'POST'])
 @app.route('/index', methods=['GET', 'POST'])
 def index():
