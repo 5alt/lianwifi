@@ -33,6 +33,19 @@
 		  <div class="label" id="status">Idle</div>
 		</div>
 		<div id="result"></div>
+		<div class="ui segment">
+			<h2 class="ui header">说明：</h2>
+			<h3 class="ui header">mac用户</h3>
+			<p>执行airport -s,将结果粘贴进去<br>
+            如果提示没有airport，先执行<br>
+sudo ln -s /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport /usr/sbin/airport
+</p>
+<h3 class="ui header">windows用户</h3>
+			<p>powershell或者cmd执行netsh wlan show network mode=bssid,将结果粘贴进去</p>
+			<h3 class="ui header">其他用户</h3>
+			<p>ssid和mac之间用空白字符分隔，每组一行</p>
+
+		</div>
 	</div>
 	<div class="two wide column"></div>
 	</div>
@@ -100,6 +113,7 @@ function update_progress(status_url){
 $(function() {
     $('#start-bg-job').click(start_task);
 });
+
 
 </script>
 

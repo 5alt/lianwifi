@@ -31,7 +31,16 @@ def index():
 def text():
 	if request.method == 'POST':
 		if request.form['text']:
-			pattern = r"\s*(.*)\s+(([0-9a-f]{2}:){5}[0-9a-f]{2})"
+			#for mac: airport -s
+			pattern1 = r"\s*(.*)\s+(([0-9a-f]{2}:){5}[0-9a-f]{2})"
+			#for windows: powershell or cmd -- netsh wlan show network mode=bssid
+			pattern2 = r"SSID \d{1,2} : (.*)\n.*\n.*\n.*\n.*(([0-9a-f]{2}:){5}[0-9a-f]{2})"
+			#order is very important!
+			if  re.compile(pattern2, re.M).findall(request.form['text']):
+				pattern = pattern2
+			else:
+				pattern = pattern1
+
 			ssid = []
 			bssid = []
 			for ss, bss, dummy in re.compile(pattern, re.M).findall(request.form['text']):

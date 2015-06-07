@@ -39,6 +39,16 @@ Redis
 
 程序搞这么复杂其实只是想练练手而已，学习下任务队列的使用。
 
+###mac osx
+
+执行`airport -s`,将结果粘贴进去
+如果提示没有`airport`，先执行
+`sudo ln -s /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport /usr/sbin/airport`
+
+###windows
+
+powershell或者cmd执行`netsh wlan show network mode=bssid`,将结果粘贴进去
+
 ## 联系方式
 
 http://5alt.me
