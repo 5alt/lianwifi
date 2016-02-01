@@ -58,23 +58,25 @@ function request($bssid, $ssid, $salt, $dhid = 'ff8080814cc5798a014ccbbdfa375369
 }
 
 function registerNewDevice(){
-	$salt = '1Hf%5Yh&7Og$1Wh!6Vr&7Rs!3Nj#1Aa$';
+    $salt = '1Hf%5Yh&7Og$1Wh!6Vr&7Rs!3Nj#1Aa$';
+ 
+    $data = array();
+    $data['appid'] = '0008';
+    $data['chanid'] = 'gw';
+    $data['os'] = 'Android';
+    $data['osvercd'] = '4.4.0';
+    $data['wkver'] = '324';
+    $data['ii'] = md5(mt_rand(1, 10000));
+    $data['lang'] = 'cn';
+    $data['mac'] = substr($data['ii'], 0, 12);
+    $data['method'] = 'getTouristSwitch';
+    $data['pid'] = 'initdev:commonswitch';
+    $data['st'] = 'm';
+    $data['uhid'] = 'a0000000000000000000000000000001';
+    $data['v'] = '324';
+    $data['sign'] = sign($data, $salt);
 
-	$data = array();
-	$data['appid'] = '0008';
-	$data['bssid'] = $bssid;
-	$data['chanid'] = 'gw';
-	$data['dhid'] = $dhid;
-	$data['ii'] = '609537f302fc6c32907a935fb4bf7ac9';
-	$data['lang'] = 'cn';
-	$data['mac'] = '60f81dad28de';
-	$data['method'] = 'getDeepSecChkSwitch';
-	$data['pid'] = 'qryapwd:commonswitch';
-	$data['ssid'] = $ssid;
-	$data['st'] = 'm';
-	$data['uhid'] = 'a0000000000000000000000000000001';
-	$data['v'] = '324';
-	$data['sign'] = sign($data, $salt);
+    return $data;
 }
 
 function sign( $array , $salt ){
